@@ -6,11 +6,18 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.0.1",
     "chart.js": "^4.4.0",
     "date-fns": "^2.30.0",
+    "drizzle-kit": "^0.31.2",
+    "drizzle-orm": "^0.44.2",
     "googleapis": "^128.0.0",
     "jspdf": "^2.5.1",
     "lucide-react": "^0.344.0",

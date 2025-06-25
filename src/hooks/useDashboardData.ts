@@ -1,119 +1,236 @@
 import { useState, useCallback, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { Priority, Habit, DailyTask, WeeklyStats, SmartInsight } from '@/types'
-import { useLocalStorage } from './useLocalStorage'
 
 export function useDashboardData() {
-  const [priorities, setPriorities] = useLocalStorage<Priority[]>('dashboard-priorities', [])
-  const [habits, setHabits] = useLocalStorage<Habit[]>('dashboard-habits', [])
-  const [dailyTasks, setDailyTasks] = useLocalStorage<DailyTask[]>('dashboard-tasks', [])
-  const [smartInsights, setSmartInsights] = useLocalStorage<SmartInsight[]>('dashboard-insights', [])
+  const { data: session } = useSession()
+  const [priorities, setPriorities] = useState<Priority[]>([])
+  const [habits, setHabits] = useState<Habit[]>([])
+  const [dailyTasks, setDailyTasks] = useState<DailyTask[]>([])
+  const [smartInsights, setSmartInsights] = useState<SmartInsight[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Initialize loading state
-  useEffect(() => {
-    // Simulate initial data load time
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 500)
+  // API helper function
+  const apiCall = useCallback(async (url: string, options?: RequestInit) => {
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+      ...options,
+    })
 
-    return () => clearTimeout(timer)
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Network error' }))
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+    }
+
+    return response.json()
   }, [])
 
-  // Priority Management
-  const addPriority = useCallback((text: string, options?: Partial<Priority>) => {
-    const newPriority: Priority = {
-      id: Date.now().toString(),
-      text,
-      completed: false,
-      createdAt: new Date(),
-      priority: options?.priority || 'medium',
-      estimatedTime: options?.estimatedTime,
-      dueDate: options?.dueDate,
-      tags: options?.tags || [],
+  // Load initial data when user is authenticated
+  useEffect(() => {
+    async function loadData() {
+      if (!session?.user) {
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        setIsLoading(true)
+        setError(null)
+
+        const [habitsData, prioritiesData] = await Promise.all([
+          apiCall('/api/habits'),
+          apiCall('/api/priorities'),
+        ])
+
+        setHabits(habitsData.habits || [])
+        setPriorities(prioritiesData.priorities || [])
+      } catch (err) {
+        console.error('Error loading data:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load data')
+      } finally {
+        setIsLoading(false)
+      }
     }
-    setPriorities(prev => [...prev, newPriority])
-  }, [setPriorities])
 
-  const togglePriority = useCallback((id: string) => {
-    setPriorities(prev =>
-      prev.map(priority =>
-        priority.id === id
-          ? { ...priority, completed: !priority.completed }
-          : priority
+    loadData()
+  }, [session?.user, apiCall])
+
+  // Priority Management
+  const addPriority = useCallback(async (text: string, options?: Partial<Priority>) => {
+    if (!session?.user) throw new Error('User not authenticated')
+
+    try {
+      const response = await apiCall('/api/priorities', {
+        method: 'POST',
+        body: JSON.stringify({
+          text,
+          priority: options?.priority || 'medium',
+          estimatedTime: options?.estimatedTime,
+          category: options?.category,
+          dueDate: options?.dueDate?.toISOString(),
+          tags: options?.tags || [],
+        }),
+      })
+
+      const newPriority = response.priority
+      setPriorities(prev => [...prev, newPriority])
+      return newPriority
+    } catch (err) {
+      console.error('Error adding priority:', err)
+      throw err
+    }
+  }, [session?.user, apiCall])
+
+  const togglePriority = useCallback(async (id: string) => {
+    if (!session?.user) throw new Error('User not authenticated')
+
+    const priority = priorities.find(p => p.id === id)
+    if (!priority) return
+
+    try {
+      const response = await apiCall(`/api/priorities/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ completed: !priority.completed }),
+      })
+
+      setPriorities(prev =>
+        prev.map(p => p.id === id ? response.priority : p)
       )
-    )
-  }, [setPriorities])
+    } catch (err) {
+      console.error('Error toggling priority:', err)
+      throw err
+    }
+  }, [session?.user, priorities, apiCall])
 
-  const deletePriority = useCallback((id: string) => {
-    setPriorities(prev => prev.filter(priority => priority.id !== id))
-  }, [setPriorities])
+  const deletePriority = useCallback(async (id: string) => {
+    if (!session?.user) throw new Error('User not authenticated')
 
-  const updatePriority = useCallback((id: string, updates: Partial<Priority>) => {
-    setPriorities(prev =>
-      prev.map(priority =>
-        priority.id === id
-          ? { ...priority, ...updates }
-          : priority
+    try {
+      await apiCall(`/api/priorities/${id}`, { method: 'DELETE' })
+      setPriorities(prev => prev.filter(p => p.id !== id))
+    } catch (err) {
+      console.error('Error deleting priority:', err)
+      throw err
+    }
+  }, [session?.user, apiCall])
+
+  const updatePriority = useCallback(async (id: string, updates: Partial<Priority>) => {
+    if (!session?.user) throw new Error('User not authenticated')
+
+    try {
+      const updateData: any = { ...updates }
+      if (updateData.dueDate && updateData.dueDate instanceof Date) {
+        updateData.dueDate = updateData.dueDate.toISOString()
+      }
+
+      const response = await apiCall(`/api/priorities/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(updateData),
+      })
+
+      setPriorities(prev =>
+        prev.map(p => p.id === id ? response.priority : p)
       )
-    )
-  }, [setPriorities])
+    } catch (err) {
+      console.error('Error updating priority:', err)
+      throw err
+    }
+  }, [session?.user, apiCall])
 
   // Habit Management
-  const addHabit = useCallback((name: string, options?: Partial<Habit>) => {
-    const newHabit: Habit = {
-      id: Date.now().toString(),
-      name,
-      completedDays: {
-        monday: false,
-        tuesday: false,
-        wednesday: false,
-        thursday: false,
-        friday: false,
-        saturday: false,
-        sunday: false,
-      },
-      createdAt: new Date(),
-      category: options?.category,
-      difficulty: options?.difficulty || 'medium',
-      estimatedTime: options?.estimatedTime || 15,
-      optimalTimes: options?.optimalTimes || [],
-      chainedHabits: options?.chainedHabits || [],
-      prerequisiteHabits: options?.prerequisiteHabits || [],
+  const addHabit = useCallback(async (name: string, options?: Partial<Habit>) => {
+    if (!session?.user) throw new Error('User not authenticated')
+
+    try {
+      const response = await apiCall('/api/habits', {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          category: options?.category,
+          difficulty: options?.difficulty || 'medium',
+          estimatedTime: options?.estimatedTime || 15,
+          completedDays: options?.completedDays || {
+            monday: false,
+            tuesday: false,
+            wednesday: false,
+            thursday: false,
+            friday: false,
+            saturday: false,
+            sunday: false,
+          },
+        }),
+      })
+
+      const newHabit = response.habit
+      setHabits(prev => [...prev, newHabit])
+      return newHabit
+    } catch (err) {
+      console.error('Error adding habit:', err)
+      throw err
     }
-    setHabits(prev => [...prev, newHabit])
-  }, [setHabits])
+  }, [session?.user, apiCall])
 
-  const toggleHabitDay = useCallback((id: string, day: string) => {
-    setHabits(prev =>
-      prev.map(habit =>
-        habit.id === id
-          ? {
-            ...habit,
-            completedDays: {
-              ...habit.completedDays,
-              [day]: !habit.completedDays[day as keyof typeof habit.completedDays],
-            },
-          }
-          : habit
+  const toggleHabitDay = useCallback(async (id: string, day: string) => {
+    if (!session?.user) throw new Error('User not authenticated')
+
+    const habit = habits.find(h => h.id === id)
+    if (!habit) return
+
+    try {
+      const updatedCompletedDays = {
+        ...habit.completedDays,
+        [day]: !habit.completedDays[day as keyof typeof habit.completedDays],
+      }
+
+      const response = await apiCall(`/api/habits/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ completedDays: updatedCompletedDays }),
+      })
+
+      setHabits(prev =>
+        prev.map(h => h.id === id ? response.habit : h)
       )
-    )
-  }, [setHabits])
+    } catch (err) {
+      console.error('Error toggling habit day:', err)
+      throw err
+    }
+  }, [session?.user, habits, apiCall])
 
-  const deleteHabit = useCallback((id: string) => {
-    setHabits(prev => prev.filter(habit => habit.id !== id))
-  }, [setHabits])
+  const deleteHabit = useCallback(async (id: string) => {
+    if (!session?.user) throw new Error('User not authenticated')
 
-  const updateHabit = useCallback((id: string, updates: Partial<Habit>) => {
-    setHabits(prev =>
-      prev.map(habit =>
-        habit.id === id
-          ? { ...habit, ...updates }
-          : habit
+    try {
+      await apiCall(`/api/habits/${id}`, { method: 'DELETE' })
+      setHabits(prev => prev.filter(h => h.id !== id))
+    } catch (err) {
+      console.error('Error deleting habit:', err)
+      throw err
+    }
+  }, [session?.user, apiCall])
+
+  const updateHabit = useCallback(async (id: string, updates: Partial<Habit>) => {
+    if (!session?.user) throw new Error('User not authenticated')
+
+    try {
+      const response = await apiCall(`/api/habits/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(updates),
+      })
+
+      setHabits(prev =>
+        prev.map(h => h.id === id ? response.habit : h)
       )
-    )
-  }, [setHabits])
+    } catch (err) {
+      console.error('Error updating habit:', err)
+      throw err
+    }
+  }, [session?.user, apiCall])
 
-  // Daily Task Management
+  // Daily Task Management (localStorage for now - can be extended to API later)
   const addDailyTask = useCallback((day: string, text: string, options?: Partial<DailyTask>) => {
     const newTask: DailyTask = {
       id: Date.now().toString(),
@@ -128,7 +245,7 @@ export function useDashboardData() {
       suggestedTime: options?.suggestedTime,
     }
     setDailyTasks(prev => [...prev, newTask])
-  }, [setDailyTasks])
+  }, [])
 
   const toggleDailyTask = useCallback((id: string) => {
     setDailyTasks(prev =>
@@ -138,11 +255,11 @@ export function useDashboardData() {
           : task
       )
     )
-  }, [setDailyTasks])
+  }, [])
 
   const deleteDailyTask = useCallback((id: string) => {
     setDailyTasks(prev => prev.filter(task => task.id !== id))
-  }, [setDailyTasks])
+  }, [])
 
   const updateDailyTask = useCallback((id: string, updates: Partial<DailyTask>) => {
     setDailyTasks(prev =>
@@ -152,17 +269,16 @@ export function useDashboardData() {
           : task
       )
     )
-  }, [setDailyTasks])
+  }, [])
 
-  // Smart Insights Management
+  // Smart Insights Management (localStorage for now)
   const addSmartInsight = useCallback((insight: SmartInsight) => {
     setSmartInsights(prev => {
-      // Avoid duplicates
       const exists = prev.some(existing => existing.id === insight.id)
       if (exists) return prev
       return [...prev, insight]
     })
-  }, [setSmartInsights])
+  }, [])
 
   const dismissSmartInsight = useCallback((insightId: string) => {
     setSmartInsights(prev =>
@@ -172,11 +288,11 @@ export function useDashboardData() {
           : insight
       )
     )
-  }, [setSmartInsights])
+  }, [])
 
   const removeSmartInsight = useCallback((insightId: string) => {
     setSmartInsights(prev => prev.filter(insight => insight.id !== insightId))
-  }, [setSmartInsights])
+  }, [])
 
   // Enhanced Statistics
   const getWeeklyStats = useCallback((): WeeklyStats => {
@@ -202,7 +318,6 @@ export function useDashboardData() {
 
     const overallScore = (prioritiesCompletionRate + habitConsistency + tasksCompletionRate) / 3
 
-    // Enhanced metrics
     const averageStreakLength = habits.length > 0
       ? habits.reduce((acc, habit) => {
         const streak = getHabitStreak(habit)
@@ -215,7 +330,6 @@ export function useDashboardData() {
       return Math.max(max, streak)
     }, 0)
 
-    // Calculate habit chain success rate
     const habitsWithChains = habits.filter(h => h.chainedHabits && h.chainedHabits.length > 0)
     const habitChainSuccessRate = habitsWithChains.length > 0
       ? habitsWithChains.reduce((acc, habit) => {
@@ -230,7 +344,6 @@ export function useDashboardData() {
       return total + (completedDays * timePerDay)
     }, 0)
 
-    // Simple trend calculation (could be enhanced with historical data)
     const recentCompletionRate = (prioritiesCompletionRate + habitConsistency + tasksCompletionRate) / 3
     const productivityTrend: 'increasing' | 'decreasing' | 'stable' =
       recentCompletionRate > 75 ? 'increasing' :
@@ -259,7 +372,7 @@ export function useDashboardData() {
 
   // Helper function to calculate habit streak
   const getHabitStreak = useCallback((habit: Habit): number => {
-    const days = ['sunday', 'saturday', 'friday', 'thursday', 'wednesday', 'tuesday', 'monday'] // Reverse order for streak calculation
+    const days = ['sunday', 'saturday', 'friday', 'thursday', 'wednesday', 'tuesday', 'monday']
     let streak = 0
 
     for (const day of days) {
@@ -310,5 +423,6 @@ export function useDashboardData() {
 
     // State
     isLoading,
+    error,
   }
 }
