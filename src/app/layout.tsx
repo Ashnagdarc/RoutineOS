@@ -3,15 +3,45 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/components/providers/AuthProvider'
 import { ToastProvider } from '@/components/providers/ToastProvider'
+import { getDomainMetaTags, getCanonicalUrl } from '@/lib/domain-config'
 
 const inter = Inter({ subsets: ['latin'] })
+
+// Get domain-aware metadata
+const domainMetaTags = getDomainMetaTags()
 
 export const metadata: Metadata = {
   title: 'RoutineOS - AI-Powered Productivity Dashboard',
   description: 'Transform your daily habits into powerful routines with AI-powered insights, smart scheduling, and productivity tracking.',
-  keywords: ['productivity', 'habits', 'tasks', 'dashboard', 'personal', 'ai', 'mobile', 'pwa'],
+  keywords: ['productivity', 'habits', 'tasks', 'dashboard', 'personal', 'ai', 'mobile', 'pwa', 'routine', 'tracking'],
   manifest: '/manifest.json',
   themeColor: '#111827',
+  // Domain-aware metadata
+  ...domainMetaTags,
+  alternates: {
+    canonical: getCanonicalUrl(),
+  },
+  openGraph: {
+    title: 'RoutineOS - AI-Powered Productivity Dashboard',
+    description: 'Transform your daily habits into powerful routines with AI-powered insights, smart scheduling, and productivity tracking.',
+    url: getCanonicalUrl(),
+    siteName: 'RoutineOS',
+    type: 'website',
+    images: [
+      {
+        url: getCanonicalUrl('/og-image.png'),
+        width: 1200,
+        height: 630,
+        alt: 'RoutineOS - AI-Powered Productivity Dashboard',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'RoutineOS - AI-Powered Productivity Dashboard',
+    description: 'Transform your daily habits into powerful routines with AI-powered insights.',
+    images: [getCanonicalUrl('/og-image.png')],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
