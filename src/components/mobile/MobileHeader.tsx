@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Menu, X, User, Bell, Search } from 'lucide-react'
+import Image from 'next/image'
 
 interface MobileHeaderProps {
     title: string
@@ -88,9 +89,11 @@ export function MobileHeader({
                             aria-label="Profile"
                         >
                             {user?.image ? (
-                                <img
+                                <Image
                                     src={user.image}
                                     alt="Profile"
+                                    width={32}
+                                    height={32}
                                     className="w-8 h-8 rounded-full border-2 border-gray-600"
                                 />
                             ) : (

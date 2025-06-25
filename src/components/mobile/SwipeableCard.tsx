@@ -256,6 +256,7 @@ interface SwipeableTaskCardProps {
     children: React.ReactNode
     onComplete?: () => void
     onArchive?: () => void
+    onEdit?: () => void
     onDelete?: () => void
     completed?: boolean
     className?: string
@@ -265,6 +266,7 @@ export function SwipeableTaskCard({
     children,
     onComplete,
     onArchive,
+    onEdit,
     onDelete,
     completed = false,
     className = ''
@@ -281,6 +283,14 @@ export function SwipeableTaskCard({
     ] : []
 
     const rightActions: SwipeAction[] = [
+        ...(onEdit ? [{
+            id: 'edit',
+            label: 'Edit',
+            icon: Edit,
+            color: 'text-white',
+            bgColor: 'bg-blue-500',
+            action: onEdit
+        }] : []),
         ...(onArchive ? [{
             id: 'archive',
             label: 'Archive',

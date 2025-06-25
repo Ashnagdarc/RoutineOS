@@ -173,6 +173,14 @@ export function Dashboard() {
     )
   }
 
+  // Debug session data (remove after testing)
+  console.log('Dashboard Session Debug:', {
+    user: session?.user,
+    image: session?.user?.image,
+    name: session?.user?.name,
+    email: session?.user?.email
+  })
+
   return (
     <div className="min-h-screen bg-gray-900">
       {/* Mobile Header */}

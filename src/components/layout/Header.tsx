@@ -3,6 +3,7 @@
 import { Calendar, Settings, BarChart3, Download, LogOut, Brain, User, ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { signOut } from 'next-auth/react'
+import Image from 'next/image'
 
 interface HeaderProps {
   user?: {
@@ -28,6 +29,14 @@ export function Header({
   showingSmartFeatures = false
 }: HeaderProps) {
   const [showUserMenu, setShowUserMenu] = useState(false)
+
+  // Debug user data
+  console.log('Header User Debug:', {
+    user,
+    image: user?.image,
+    name: user?.name,
+    email: user?.email
+  })
 
   const today = new Date()
   const dateString = today.toLocaleDateString('en-US', {
@@ -91,9 +100,11 @@ export function Header({
               className="flex items-center space-x-2 p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-all duration-200"
             >
               {user?.image ? (
-                <img
+                <Image
                   src={user.image}
                   alt="Profile"
+                  width={32}
+                  height={32}
                   className="w-8 h-8 rounded-full"
                 />
               ) : (
@@ -109,9 +120,11 @@ export function Header({
                 <div className="p-4 border-b border-gray-700">
                   <div className="flex items-center space-x-3">
                     {user?.image ? (
-                      <img
+                      <Image
                         src={user.image}
                         alt="Profile"
+                        width={40}
+                        height={40}
                         className="w-10 h-10 rounded-full"
                       />
                     ) : (

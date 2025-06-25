@@ -7,6 +7,7 @@ export interface Priority {
   priority?: 'low' | 'medium' | 'high' | 'urgent'
   estimatedTime?: number // minutes
   tags?: string[]
+  category?: string
 }
 
 export interface Habit {
