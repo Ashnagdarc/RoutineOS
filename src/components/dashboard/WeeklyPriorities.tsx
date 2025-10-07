@@ -130,7 +130,8 @@ export function WeeklyPriorities({ priorities, onAdd, onToggle, onDelete, onUpda
   }
 
   const filteredAndSortedPriorities = useMemo(() => {
-    let filtered = priorities
+    // Create a shallow copy so sorting doesn't mutate state directly
+    let filtered = [...priorities]
 
     // Apply completion filter
     if (!showCompleted) {
